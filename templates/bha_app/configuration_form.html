@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Create BHA Configuration</h1>
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    
+    <h2>Select Components</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Select</th>
+                <th>Component</th>
+                <th>Type</th>
+                <th>Length</th>
+                <th>Quantity</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for component in components %}
+            <tr>
+                <td>
+                    <input type="checkbox" 
+                           name="components" 
+                           value="{{ component.id }}"
+                           id="component_{{ component.id }}">
+                </td>
+                <td>{{ component.name }}</td>
+                <td>{{ component.get_component_type_display }}</td>
+                <td>{{ component.length }}</td>
+                <td>
+                    <input type="number" 
+                           name="quantity_{{ component.id }}" 
+                           value="1" 
+                           min="1">
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <button type="submit">Create Configuration</button>
+</form>
+{% endblock %}

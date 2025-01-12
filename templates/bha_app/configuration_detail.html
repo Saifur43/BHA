@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>BHA Configuration: {{ object.name }}</h1>
+<p>Total Length: {{ object.total_length }} m</p>
+<p>Created: {{ object.created_at }}</p>
+
+{% if object.bha_image %}
+<h2>BHA Configuration Image</h2>
+<img src="{{ object.bha_image.url }}" alt="BHA Configuration" style="max-width: 100%; height: auto;">
+{% endif %}
+
+<h2>Configuration Items</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Component</th>
+            <th>Type</th>
+            <th>Length</th>
+            <th>Quantity</th>
+            <th>Component Image</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in configuration_items %}
+        <tr>
+            <td>{{ item.component.name }}</td>
+            <td>{{ item.component.get_component_type_display }}</td>
+            <td>{{ item.component.length }}</td>
+            <td>{{ item.quantity }}</td>
+            <td>
+                {% if item.component.image %}
+                <img src="{{ item.component.image.url }}" 
+                     alt="{{ item.component.name }}" 
+                     style="max-width: 100px; height: auto;">
+                {% else %}
+                No Image
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

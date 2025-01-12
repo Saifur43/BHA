@@ -1,0 +1,26 @@
+{% extends 'bha_app/base.html' %}
+
+{% block content %}
+<h1>BHA Components</h1>
+<a href="{% url 'component_create' %}">Add New Component</a>
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Length</th>
+            <th>Diameter</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for component in components %}
+        <tr>
+            <td>{{ component.name }}</td>
+            <td>{{ component.get_component_type_display }}</td>
+            <td>{{ component.length }}</td>
+            <td>{{ component.diameter }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
