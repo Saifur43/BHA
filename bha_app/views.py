@@ -8,124 +8,96 @@ from django.core.files.base import ContentFile
 import io
 from django.urls import reverse_lazy
 from django.views.generic.edit import UpdateView, DeleteView
+import base64
 
-from PIL import Image, ImageDraw, ImageFont
-import io
+import svgwrite
 from django.core.files.base import ContentFile
-
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+import io
+from PIL import Image
 import numpy as np
-
+import base64
+from PIL import Image, ImageDraw
 
 def generate_bha_configuration_image(configuration):
-    """Generate BHA configuration image using matplotlib"""
-    # Create figure and axes with smaller size and higher DPI
-    fig, (ax1, ax2) = plt.subplots(1, 2, gridspec_kw={'width_ratios': [1, 1]}, figsize=(8, 11), dpi=150)
-    fig.patch.set_facecolor('white')
-    plt.subplots_adjust(left=0.15, right=0.95, top=0.95, bottom=0.05, wspace=0.2)
+    """Generate BHA configuration image using PIL"""
+    # Set image dimensions
+    width = 300
+    height = 800
+    
+    # Create new image with white background
+    image = Image.new('RGB', (width, height), 'white')
+    draw = ImageDraw.Draw(image)
     
     # Get components and calculate total length
     components = configuration.items.all().order_by('order')
     total_length = sum(item.component.length * item.quantity for item in components)
     
-    # Set up the main axis for BHA drawing
-    ax1.set_ylim(-total_length, 0)  # Set y-axis limit to total length
-    ax1.set_xlim(-0.3, 0.3)
-    ax1.yaxis.set_major_locator(plt.MultipleLocator(50))
-    ax1.grid(False)
+    # Calculate scaling factor
+    scale_factor = (height - 100) / total_length  # Preserve some margin
     
-    # Style the axis
-    ax1.spines['top'].set_visible(False)
-    ax1.spines['right'].set_visible(False)
-    ax1.spines['bottom'].set_visible(False)
-    ax1.spines['left'].set_linewidth(0.5)
+    # Standard component width
+    component_width = 60
+    x_center = width // 2
     
-    # Remove x-axis ticks and labels
-    ax1.set_xticks([])
+    # Draw components
+    current_depth = 50  # Start 50px from top
     
-    # Draw components sequentially
-    current_depth = 0
     for item in components:
         component = item.component
-        component_length = component.length * item.quantity
+        component_length = item.quantity * component.length
+        height_pixels = int(component_length * scale_factor)
         
         if component.image:
             try:
-                img = plt.imread(component.image.path)
-                img_width = 0.1
+                # Open and resize component image
+                comp_img = Image.open(component.image.path)
+                comp_img = comp_img.convert('RGB')
                 
-                ax1.imshow(img, extent=[-img_width/2, img_width/2, 
-                                     -(current_depth + component_length), -current_depth],
-                          aspect='auto')
+                # Calculate dimensions preserving aspect ratio
+                comp_width = component_width
+                comp_height = height_pixels
+                
+                # Resize image
+                comp_img = comp_img.resize((comp_width, comp_height), Image.Resampling.LANCZOS)
+                
+                # Paste component image
+                x_pos = x_center - (comp_width // 2)
+                image.paste(comp_img, (x_pos, current_depth))
+                
+                # Draw border
+                draw.rectangle(
+                    [(x_pos, current_depth), 
+                     (x_pos + comp_width, current_depth + comp_height)],
+                    outline='black',
+                    width=1
+                )
+                
             except Exception as e:
-                rect = patches.Rectangle((-0.15, -(current_depth + component_length)), 
-                                      0.3, component_length,
-                                      facecolor='lightgray',
-                                      edgecolor='black',
-                                      linewidth=0.5)
-                ax1.add_patch(rect)
-        else:
-            rect = patches.Rectangle((-0.15, -(current_depth + component_length)), 
-                                  0.3, component_length,
-                                  facecolor='lightgray',
-                                  edgecolor='black',
-                                  linewidth=0.5)
-            ax1.add_patch(rect)
+                # Draw placeholder rectangle if image fails
+                x_pos = x_center - (component_width // 2)
+                draw.rectangle(
+                    [(x_pos, current_depth),
+                     (x_pos + component_width, current_depth + height_pixels)],
+                    outline='black',
+                    fill='lightgray',
+                    width=1
+                )
         
-        current_depth += component_length
+        # Add length label
+        label = f'{component_length}m'
+        draw.text(
+            (x_center + component_width//2 + 10, current_depth + height_pixels//2),
+            label,
+            fill='black',
+            anchor='lm'
+        )
+        
+        current_depth += height_pixels
     
-    # Set up table axis
-    ax2.axis('off')
-    
-    # Create table data
-    table_data = []
-    for i, item in enumerate(components, 1):
-        component = item.component
-        table_data.append([
-            i,
-            component.name,
-            item.quantity,
-            f"{component.length * item.quantity:.1f}"
-        ])
-    
-    # Add total row
-    table_data.append(['', 'Total:', '', f"{total_length:.1f}"])
-    
-    # Create table
-    table = ax2.table(
-        cellText=table_data,
-        colLabels=['No', 'ITEM', 'Sgls', 'Length'],
-        loc='top',
-        cellLoc='center',
-        colWidths=[0.15, 0.45, 0.15, 0.25]
-    )
-    
-    # Style the table
-    table.auto_set_font_size(False)
-    table.set_fontsize(9)
-    table.scale(1.2, 1.5)
-    
-    # Style header row
-    for i, key in enumerate(table._cells):
-        cell = table._cells[key]
-        if key[0] == 0:  # Header row
-            cell.set_facecolor('#e6e6e6')
-            cell.set_text_props(weight='bold')
-        if key[0] == len(table_data):  # Total row
-            cell.set_text_props(weight='bold')
-    
-    # Adjust layout
-    plt.tight_layout()
-    
-    # Save to bytes
-    buffer = io.BytesIO()
-    canvas = FigureCanvas(fig)
-    canvas.print_png(buffer)
-    plt.close(fig)
-    
-    return ContentFile(buffer.getvalue())
+    # Convert to ContentFile
+    img_buffer = io.BytesIO()
+    image.save(img_buffer, format='PNG')
+    return ContentFile(img_buffer.getvalue(), name='bha_configuration.png')
 
 
 class BHAComponentListView(ListView):
@@ -159,43 +131,25 @@ class BHAConfigurationCreateView(CreateView):
                     configuration = form.save(commit=False)
                     configuration.save()
                     
-                    selected_components = request.POST.getlist('components')
+                    component_ids = request.POST.getlist('component_ids[]')
+                    quantities = request.POST.getlist('quantities[]')
                     
-                    if not selected_components:
-                        form.add_error(None, "Please select at least one component")
+                    if not component_ids:
+                        form.add_error(None, "Please add at least one component")
                         return self.form_invalid(form)
                     
-                    # Create items list with positions
-                    items_to_create = []
-                    for component_id in selected_components:
-                        quantity = int(request.POST.get(f'quantity_{component_id}', 1))
-                        position = float(request.POST.get(f'position_{component_id}', 0))
-                        component = BHAComponent.objects.get(id=component_id)
-                        
-                        items_to_create.append({
-                            'component': component,
-                            'quantity': quantity,
-                            'position': position
-                        })
-                    
-                    # Sort items by position
-                    items_to_create.sort(key=lambda x: x['position'])
-                    
-                    # Create items with correct order
-                    max_position = 0
-                    for i, item in enumerate(items_to_create):
+                    # Create items in order of addition
+                    for i, (comp_id, quantity) in enumerate(zip(component_ids, quantities)):
+                        if not comp_id:  # Skip empty selections
+                            continue
+                            
+                        component = BHAComponent.objects.get(id=comp_id)
                         BHAConfigurationItem.objects.create(
                             configuration=configuration,
-                            component=item['component'],
-                            quantity=item['quantity'],
-                            order=i,
-                            position=item['position']
+                            component=component,
+                            quantity=int(quantity),
+                            order=i
                         )
-                        max_position = max(max_position, 
-                                        item['position'] + (item['component'].length * item['quantity']))
-                    
-                    configuration.total_length = max_position
-                    configuration.save()
                     
                     try:
                         bha_image = generate_bha_configuration_image(configuration)

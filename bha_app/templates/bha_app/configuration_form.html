@@ -2,54 +2,98 @@
 
 {% block content %}
 <h1>Create BHA Configuration</h1>
-<form method="post">
+<form method="post" id="configForm">
     {% csrf_token %}
     {{ form.as_p }}
     
-    <h2>Select Components</h2>
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Select</th>
-                <th>Component</th>
-                <th>Type</th>
-                <th>Length</th>
-                <th>Quantity</th>
-                <th>Position (m)</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for component in components %}
-            <tr>
-                <td>
-                    <input type="checkbox" 
-                           name="components" 
-                           value="{{ component.id }}"
-                           id="component_{{ component.id }}">
-                </td>
-                <td>{{ component.name }}</td>
-                <td>{{ component.get_component_type_display }}</td>
-                <td>{{ component.length }}</td>
-                <td>
-                    <input type="number" 
-                           name="quantity_{{ component.id }}" 
-                           value="1" 
-                           min="1"
-                           class="form-control form-control-sm">
-                </td>
-                <td>
-                    <input type="number" 
-                           name="position_{{ component.id }}" 
-                           value="0" 
-                           min="0"
-                           step="0.1"
-                           class="form-control form-control-sm">
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <h2>Components</h2>
+    <div class="mb-3">
+        <button type="button" class="btn btn-success" id="addComponent">
+            <i class="fas fa-plus"></i> Add Component
+        </button>
+    </div>
+
+    <div id="componentsList">
+        <!-- Component entries will be added here -->
+    </div>
     
     <button type="submit" class="btn btn-primary">Create Configuration</button>
 </form>
+
+<!-- Component selection template -->
+<template id="componentTemplate">
+    <div class="card mb-3 component-entry">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <select name="component_ids[]" class="form-select" required>
+                        <option value="">Select Component</option>
+                        {% for component in components %}
+                        <option value="{{ component.id }}" 
+                                data-length="{{ component.length }}"
+                                data-type="{{ component.get_component_type_display }}">
+                            {{ component.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <input type="number" 
+                           name="quantities[]" 
+                           class="form-control" 
+                           placeholder="Quantity"
+                           value="1" 
+                           min="1" 
+                           required>
+                </div>
+                <div class="col-md-2">
+                    <span class="component-info"></span>
+                </div>
+                <div class="col-md-1">
+                    <button type="button" class="btn btn-danger btn-sm remove-component">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('configForm');
+    const addButton = document.getElementById('addComponent');
+    const componentsList = document.getElementById('componentsList');
+    const template = document.getElementById('componentTemplate');
+
+    addButton.addEventListener('click', function() {
+        const clone = template.content.cloneNode(true);
+        componentsList.appendChild(clone);
+        
+        const newComponent = componentsList.lastElementChild;
+        setupComponentListeners(newComponent);
+    });
+
+    function setupComponentListeners(componentEntry) {
+        const removeBtn = componentEntry.querySelector('.remove-component');
+        const select = componentEntry.querySelector('select');
+        const infoSpan = componentEntry.querySelector('.component-info');
+
+        removeBtn.addEventListener('click', function() {
+            componentEntry.remove();
+        });
+
+        select.addEventListener('change', function() {
+            const option = select.selectedOptions[0];
+            if (option.value) {
+                infoSpan.textContent = `${option.dataset.type} - ${option.dataset.length}m`;
+            } else {
+                infoSpan.textContent = '';
+            }
+        });
+    }
+
+    addButton.click();
+});
+</script>
 {% endblock %}
